@@ -1,0 +1,201 @@
+﻿@page "/stat-card"
+@using System.ComponentModel.DataAnnotations
+
+<div class="container-fluid p-4 bg-light min-vh-100">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="text-primary fw-bold">Football Stat Card & Evaluation System</h2>
+            <p class="text-muted">Enter player details, generate stat cards, and compare performance.</p>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">Player Data Entry</h5>
+                </div>
+                <div class="card-body">
+                    <EditForm Model="@currentPlayer" OnValidSubmit="GenerateStatCard" FormName="StatCardForm">
+                        <DataAnnotationsValidator />
+
+                        <h6 class="text-secondary mt-2">Basic Info</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Player Name</label>
+                            <InputText class="form-control" @bind-Value="currentPlayer.Name" placeholder="e.g., Lionel Messi" />
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Age</label>
+                                <InputNumber class="form-control" @bind-Value="currentPlayer.Age" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Position</label>
+                                <InputSelect class="form-select" @bind-Value="currentPlayer.Position">
+                                    <option value="">Select...</option>
+                                    <option value="Forward">Forward</option>
+                                    <option value="Midfielder">Midfielder</option>
+                                    <option value="Defender">Defender</option>
+                                    <option value="Goalkeeper">Goalkeeper</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Team</label>
+                            <InputText class="form-control" @bind-Value="currentPlayer.Team" />
+                        </div>
+
+                        <h6 class="text-secondary mt-4">Performance Stats</h6>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Matches</label>
+                                <InputNumber class="form-control" @bind-Value="currentPlayer.Matches" />
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Goals</label>
+                                <InputNumber class="form-control" @bind-Value="currentPlayer.Goals" />
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Assists</label>
+                                <InputNumber class="form-control" @bind-Value="currentPlayer.Assists" />
+                            </div>
+                        </div>
+
+                        <h6 class="text-secondary mt-4">Profile Image</h6>
+                        <div class="mb-4">
+                            <InputFile class="form-control" OnChange="HandleImageUpload" />
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">Generate Stat Card</button>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 h-100 bg-dark text-white text-center" id="stat-card-view">
+                <div class="card-body d-flex flex-column justify-content-center align-items-center p-5">
+                    @if (isCardGenerated)
+                    {
+                        <div class="profile-image-container mb-3">
+                            <img src="@imageUrl" alt="Player" class="img-fluid rounded-circle border border-warning border-4" style="width: 150px; height: 150px; object-fit: cover;" />
+                        </div>
+                        <h3 class="text-uppercase fw-bold text-warning mb-0">@currentPlayer.Name</h3>
+                        <p class="fs-5 text-light mb-4">@currentPlayer.Position | @currentPlayer.Team</p>
+
+                        <div class="rating-badge bg-warning text-dark rounded-pill px-4 py-2 mb-4">
+                            <h4 class="mb-0 fw-bold">RATING: @calculatedRating / 10</h4>
+                        </div>
+
+                        <div class="row w-100 text-center mt-3">
+                            <div class="col-4">
+                                <h3 class="fw-bold mb-0">@currentPlayer.Matches</h3>
+                                <small class="text-uppercase text-muted">Matches</small>
+                            </div>
+                            <div class="col-4">
+                                <h3 class="fw-bold mb-0">@currentPlayer.Goals</h3>
+                                <small class="text-uppercase text-muted">Goals</small>
+                            </div>
+                            <div class="col-4">
+                                <h3 class="fw-bold mb-0">@currentPlayer.Assists</h3>
+                                <small class="text-uppercase text-muted">Assists</small>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-muted">
+                            <i class="bi bi-person-bounding-box fs-1"></i>
+                            <p class="mt-3">Fill out the details and click Generate to preview the stat card.</p>
+                        </div>
+                    }
+                </div>
+                <div class="card-footer bg-secondary bg-opacity-25 border-0 p-3">
+                    <button class="btn btn-outline-light btn-sm me-2" disabled="@(!isCardGenerated)">
+                        <i class="bi bi-file-earmark-pdf"></i> Export PDF
+                    </button>
+                    <button class="btn btn-outline-light btn-sm" disabled="@(!isCardGenerated)">
+                        <i class="bi bi-image"></i> Export Image
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Compare Players</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">Select a second player from the database to compare stats side-by-side.</p>
+
+                    <div class="mb-4">
+                        <label class="form-label">Select Database Player</label>
+                        <select class="form-select">
+                            <option>Load from Database...</option>
+                        </select>
+                    </div>
+
+                    <button class="btn btn-success w-100 mb-4 fw-bold">Compare Now</button>
+
+                    <div class="comparison-results border rounded p-3 bg-light">
+                        <div class="row text-center fw-bold text-muted border-bottom pb-2 mb-2">
+                            <div class="col-4 text-primary">Current</div>
+                            <div class="col-4">Metric</div>
+                            <div class="col-4 text-danger">Opponent</div>
+                        </div>
+                        <div class="row text-center mb-2">
+                            <div class="col-4 fw-bold">@currentPlayer.Goals</div>
+                            <div class="col-4 text-muted small text-uppercase">Goals</div>
+                            <div class="col-4">0</div>
+                        </div>
+                        <div class="row text-center mb-2">
+                            <div class="col-4 fw-bold">@currentPlayer.Assists</div>
+                            <div class="col-4 text-muted small text-uppercase">Assists</div>
+                            <div class="col-4">0</div>
+                        </div>
+                        <div class="row text-center">
+                            <div class="col-4 fw-bold text-warning">@calculatedRating</div>
+                            <div class="col-4 text-muted small text-uppercase">Rating</div>
+                            <div class="col-4">0.0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private PlayerModel currentPlayer = new PlayerModel();
+    private bool isCardGenerated = false;
+    private double calculatedRating = 0.0;
+    private string imageUrl = "/images/default-avatar.png";
+
+    private void GenerateStatCard()
+    {
+        // Simple rating algorithm (matches proposal requirement 5.4)
+        double goalWeight = currentPlayer.Goals * 0.4;
+        double assistWeight = currentPlayer.Assists * 0.3;
+        double matchWeight = currentPlayer.Matches > 0 ? (currentPlayer.Goals + currentPlayer.Assists) / (double)currentPlayer.Matches * 3 : 0;
+
+        calculatedRating = Math.Round(Math.Min(10, goalWeight + assistWeight + matchWeight), 1);
+        isCardGenerated = true;
+    }
+
+    private void HandleImageUpload(InputFileChangeEventArgs e)
+    {
+        // Logic to handle file stream, save locally/db, and update imageUrl
+    }
+
+    public class PlayerModel
+    {
+        [Required] public string Name { get; set; } = string.Empty;
+        [Required] public int Age { get; set; }
+        [Required] public string Team { get; set; } = string.Empty;
+        [Required] public string Position { get; set; } = string.Empty;
+        public int Matches { get; set; }
+        public int Goals { get; set; }
+        public int Assists { get; set; }
+    }
+}

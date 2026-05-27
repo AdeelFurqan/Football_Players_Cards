@@ -1,0 +1,410 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using FootballPlayerCards.Models
+@using FootballPlayerCards.Services
+@inject DatabaseService DbService
+@inject IJSRuntime JS
+
+<div class="container-fluid mt-4 px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3 hide-on-print">
+        <div>
+            <h2 class="mb-0 fw-bold text-dark text-uppercase tracking-wide">Performance Analytics</h2>
+            <p class="text-muted mb-0">Smart Football Player Stat Card System</p>
+        </div>
+        <div>
+            @if (compareList.Count > 0)
+            {
+                <button class="btn btn-warning shadow-sm px-4 rounded-pill me-2 fw-bold" @onclick="ShowComparisonModal">
+                    <i class="bi bi-intersect me-2"></i> Compare (@compareList.Count/2)
+                </button>
+                <button class="btn btn-outline-danger shadow-sm rounded-pill me-2" @onclick="ClearComparison">Clear</button>
+            }
+            <button class="btn btn-dark shadow-sm px-4 rounded-pill" @onclick="ShowCreateForm">
+                <i class="bi bi-plus-lg me-2"></i> Generate New Card
+            </button>
+        </div>
+    </div>
+
+    @if (showForm)
+    {
+        <div class="card shadow border-0 mb-5 rounded-4 overflow-hidden fade-in hide-on-print">
+            <div class="card-header bg-dark text-white p-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">@(currentPlayer.PlayerID == 0 ? "Enter Player Statistics" : "Update Player Data")</h5>
+                <button class="btn-close btn-close-white" @onclick="CloseForm"></button>
+            </div>
+            <div class="card-body bg-light p-4">
+                <EditForm Model="currentPlayer" OnValidSubmit="SavePlayer">
+                    <DataAnnotationsValidator />
+                    <div class="row g-4">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold text-secondary">First Name</label>
+                            <InputText class="form-control" @bind-Value="currentPlayer.FirstName" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold text-secondary">Last Name</label>
+                            <InputText class="form-control" @bind-Value="currentPlayer.LastName" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold text-secondary">Age</label>
+                            <InputNumber class="form-control" @bind-Value="currentPlayer.Age" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold text-secondary">Position</label>
+                            <InputSelect class="form-select" @bind-Value="currentPlayer.Position">
+                                <option value="Forward">Forward (FW)</option>
+                                <option value="Midfielder">Midfielder (MID)</option>
+                                <option value="Defender">Defender (DEF)</option>
+                                <option value="Goalkeeper">Goalkeeper (GK)</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold text-secondary">Matches Played</label>
+                            <InputNumber class="form-control" @bind-Value="currentPlayer.Matches" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold text-secondary">Goals</label>
+                            <InputNumber class="form-control" @bind-Value="currentPlayer.Goals" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold text-secondary">Assists</label>
+                            <InputNumber class="form-control" @bind-Value="currentPlayer.Assists" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold text-secondary">Club</label>
+                            <InputSelect class="form-select" @bind-Value="currentPlayer.ClubID">
+                                <option value="0">-- Select Club --</option>
+                                @foreach (var club in clubs)
+                                {
+                                    <option value="@club.ClubID">@club.ClubName</option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-bold text-secondary">Profile Image URL (Optional)</label>
+                            <InputText class="form-control" @bind-Value="currentPlayer.ImageUrl" placeholder="/images/player.png OR https://..." />
+                        </div>
+                    </div>
+
+                    <div class="mt-4 text-end">
+                        <button type="button" class="btn btn-outline-secondary me-2 rounded-pill px-4" @onclick="CloseForm">Cancel</button>
+                        <button type="submit" class="btn btn-primary rounded-pill px-4">Save Stat Card</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="text-center mt-5"><div class="spinner-border text-dark"></div></div>
+    }
+    else
+    {
+        <div class="row g-4 printable-area">
+            @foreach (var p in players)
+            {
+                <div class="col-xl-3 col-lg-4 col-md-6 @(printingPlayerId.HasValue && printingPlayerId != p.PlayerID ? "hide-on-print" : "") @(printingPlayerId == p.PlayerID ? "print-target" : "")">
+                    <div class="stat-card shadow-lg rounded-4 overflow-hidden position-relative bg-white border @(compareList.Contains(p) ? "border-warning border-3" : "")">
+                        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center p-3 border-0">
+                            <div>
+                                <h2 class="mb-0 fw-bolder text-warning">@p.Rating.ToString("0.0")</h2>
+                                <small class="text-uppercase tracking-widest text-light" style="font-size: 0.7rem;">OVR</small>
+                            </div>
+                            <div class="text-end">
+                                <h4 class="mb-0 fw-bold">@p.Position.Substring(0, 3).ToUpper()</h4>
+                                <span class="badge bg-secondary">Age @p.Age</span>
+                            </div>
+                        </div>
+
+                        <div class="image-container bg-light text-center py-3 border-bottom">
+                            @if (!string.IsNullOrEmpty(p.ImageUrl))
+                            {
+                                <img src="@p.ImageUrl" alt="Profile" class="player-img" />
+                            }
+                            else
+                            {
+                                <div class="placeholder-img d-inline-flex justify-content-center align-items-center bg-secondary text-white rounded-circle fs-1 fw-bold">
+                                    @p.FirstName.Substring(0, 1)@p.LastName.Substring(0, 1)
+                                </div>
+                            }
+                        </div>
+
+                        <div class="card-body p-3 text-center">
+                            <h4 class="fw-bolder mb-0 text-dark text-uppercase">@p.LastName</h4>
+                            <p class="text-muted mb-3">@p.FirstName • @p.ClubName</p>
+
+                            <div class="row text-center g-2 mb-3">
+                                <div class="col-4 border-end">
+                                    <h5 class="fw-bold mb-0">@p.Matches</h5>
+                                    <small class="text-muted text-uppercase" style="font-size: 0.65rem;">Matches</small>
+                                </div>
+                                <div class="col-4 border-end">
+                                    <h5 class="fw-bold mb-0 text-success">@p.Goals</h5>
+                                    <small class="text-muted text-uppercase" style="font-size: 0.65rem;">Goals</small>
+                                </div>
+                                <div class="col-4">
+                                    <h5 class="fw-bold mb-0 text-primary">@p.Assists</h5>
+                                    <small class="text-muted text-uppercase" style="font-size: 0.65rem;">Assists</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-footer bg-white border-top-0 p-2 hide-on-print">
+                            <div class="d-flex mb-2">
+                                <button class="btn btn-light btn-sm w-50 me-1 fw-bold text-secondary" @onclick="() => EditPlayer(p)">EDIT</button>
+                                <button class="btn btn-danger btn-sm w-50 fw-bold" @onclick="() => DeletePlayer(p.PlayerID)">DELETE</button>
+                            </div>
+                            <div class="d-flex">
+                                <button class="btn @(compareList.Contains(p) ? "btn-warning" : "btn-outline-warning") btn-sm w-50 me-1 fw-bold"
+                                        @onclick="() => ToggleCompare(p)">
+                                    @(compareList.Contains(p) ? "SELECTED" : "COMPARE")
+                                </button>
+                                <button class="btn btn-outline-dark btn-sm w-50 fw-bold" @onclick="() => PrintSingleCard(p.PlayerID)">📄 EXPORT</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@if (showCompareModal && compareList.Count == 2)
+{
+    var p1 = compareList[0];
+    var p2 = compareList[1];
+
+    <div class="modal fade show d-block hide-on-print" style="background: rgba(0,0,0,0.8);" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 shadow-lg">
+                <div class="modal-header bg-dark text-white border-0 p-4">
+                    <h4 class="modal-title fw-bold text-uppercase tracking-wide">Player Comparison Matrix</h4>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseComparisonModal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <table class="table table-bordered text-center mb-0 align-middle fs-5">
+                        <thead class="bg-light">
+                            <tr>
+                                <th width="40%" class="py-4">
+                                    <h3 class="fw-bolder mb-0">@p1.FirstName @p1.LastName</h3>
+                                    <span class="badge bg-dark">@p1.Position</span>
+                                </th>
+                                <th width="20%" class="text-muted text-uppercase tracking-wide align-middle bg-secondary text-white">Attribute</th>
+                                <th width="40%" class="py-4">
+                                    <h3 class="fw-bolder mb-0">@p2.FirstName @p2.LastName</h3>
+                                    <span class="badge bg-dark">@p2.Position</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="@(p1.Rating > p2.Rating ? "bg-success text-white fw-bold" : "")">@p1.Rating.ToString("0.0")</td>
+                                <td class="text-muted fw-bold">OVR RATING</td>
+                                <td class="@(p2.Rating > p1.Rating ? "bg-success text-white fw-bold" : "")">@p2.Rating.ToString("0.0")</td>
+                            </tr>
+                            <tr>
+                                <td class="@(p1.Goals > p2.Goals ? "bg-success text-white fw-bold" : "")">@p1.Goals</td>
+                                <td class="text-muted fw-bold">GOALS</td>
+                                <td class="@(p2.Goals > p1.Goals ? "bg-success text-white fw-bold" : "")">@p2.Goals</td>
+                            </tr>
+                            <tr>
+                                <td class="@(p1.Assists > p2.Assists ? "bg-success text-white fw-bold" : "")">@p1.Assists</td>
+                                <td class="text-muted fw-bold">ASSISTS</td>
+                                <td class="@(p2.Assists > p1.Assists ? "bg-success text-white fw-bold" : "")">@p2.Assists</td>
+                            </tr>
+                            <tr>
+                                <td>@p1.Matches</td>
+                                <td class="text-muted fw-bold">MATCHES</td>
+                                <td>@p2.Matches</td>
+                            </tr>
+                            <tr>
+                                <td>@p1.Age</td>
+                                <td class="text-muted fw-bold">AGE</td>
+                                <td>@p2.Age</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="modal-footer border-0 p-3 bg-light">
+                    <button type="button" class="btn btn-dark px-4 rounded-pill fw-bold" @onclick="CloseComparisonModal">Close Analysis</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .tracking-wide {
+        letter-spacing: 1px;
+    }
+
+    .tracking-widest {
+        letter-spacing: 2px;
+    }
+
+    .stat-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: 2px solid transparent;
+    }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 1rem 3rem rgba(0,0,0,0.15) !important;
+        }
+
+    .player-img {
+        height: 120px;
+        width: 120px;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 4px solid white;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .placeholder-img {
+        height: 120px;
+        width: 120px;
+        border: 4px solid white;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .fade-in {
+        animation: fadeIn 0.3s ease;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* --- FINAL, ISOLATED PRINT STYLES --- */
+    @@media print {
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        body {
+            background-color: white !important;
+        }
+
+        .hide-on-print {
+            display: none !important;
+        }
+        /* Expands and centers the isolated card on the PDF */
+        .print-target {
+            width: 100% !important;
+            display: flex !important;
+            justify-content: center !important;
+        }
+
+            .print-target .stat-card {
+                width: 500px !important; /* Forces a perfect, large size for presentation */
+                border: 2px solid #ddd !important;
+                box-shadow: none !important;
+            }
+    }
+</style>
+
+@code {
+    private List<Player> players = new();
+    private List<Club> clubs = new();
+    private Player currentPlayer = new() { Position = "Midfielder" };
+
+    private List<Player> compareList = new();
+    private bool showCompareModal = false;
+
+    private bool isLoading = true;
+    private bool showForm = false;
+
+    // NEW: Tracking which player is currently being exported
+    private int? printingPlayerId = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        players = await DbService.GetAllPlayersAsync();
+        clubs = await DbService.GetAllClubsAsync();
+        isLoading = false;
+    }
+
+    // --- NEW: Single Card Print Logic ---
+    private async Task PrintSingleCard(int id)
+    {
+        printingPlayerId = id;              // Mark this player as the print target
+        await InvokeAsync(StateHasChanged); // Tell Blazor to hide the other cards
+
+        await Task.Delay(100);              // Wait 100ms for the browser DOM to actually update
+        await JS.InvokeVoidAsync("window.print"); // Pop open the PDF dialog
+
+        printingPlayerId = null;            // Unmark the player once the dialog closes
+        await InvokeAsync(StateHasChanged); // Tell Blazor to bring all the cards back!
+    }
+
+    // --- Comparison Module Methods ---
+    private void ToggleCompare(Player p)
+    {
+        if (compareList.Contains(p)) compareList.Remove(p);
+        else if (compareList.Count < 2) compareList.Add(p);
+        if (compareList.Count == 2) showCompareModal = true;
+    }
+    private void ShowComparisonModal() => showCompareModal = true;
+    private void CloseComparisonModal() => showCompareModal = false;
+    private void ClearComparison()
+    {
+        compareList.Clear();
+        showCompareModal = false;
+    }
+
+    // --- Standard CRUD Methods ---
+    private void ShowCreateForm()
+    {
+        currentPlayer = new Player { Position = "Midfielder" };
+        showForm = true;
+    }
+    private void EditPlayer(Player p)
+    {
+        currentPlayer = new Player
+        {
+            PlayerID = p.PlayerID,
+            FirstName = p.FirstName,
+            LastName = p.LastName,
+            Age = p.Age,
+            Position = p.Position,
+            Matches = p.Matches,
+            Goals = p.Goals,
+            Assists = p.Assists,
+            ImageUrl = p.ImageUrl,
+            ClubID = p.ClubID
+        };
+        showForm = true;
+    }
+    private void CloseForm() { showForm = false; }
+    private async Task SavePlayer()
+    {
+        if (currentPlayer.ClubID == 0) return;
+        await DbService.SavePlayerAsync(currentPlayer);
+        await LoadDataAsync();
+        showForm = false;
+    }
+    private async Task DeletePlayer(int id)
+    {
+        await DbService.DeletePlayerAsync(id);
+        await LoadDataAsync();
+        compareList.RemoveAll(p => p.PlayerID == id);
+    }
+}
