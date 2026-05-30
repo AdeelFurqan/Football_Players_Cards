@@ -4,6 +4,7 @@
 @using FootballPlayerCards.Services
 @inject DatabaseService DbService
 @inject IJSRuntime JS
+@inject ImageUploadService ImageService
 
 <div class="container-fluid mt-4 px-4">
     <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3 hide-on-print">
@@ -82,8 +83,15 @@
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label fw-bold text-secondary">Profile Image URL (Optional)</label>
-                            <InputText class="form-control" @bind-Value="currentPlayer.ImageUrl" placeholder="/images/player.png OR https://..." />
+                            <label class="form-label fw-bold text-secondary">Upload Profile Image</label>
+                            <InputFile OnChange="HandleImageUpload" accept="image/*" class="form-control shadow-sm" />
+
+                            @if (!string.IsNullOrEmpty(currentPlayer.ImageUrl))
+                            {
+                                <small class="text-success fw-bold mt-2 d-block">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Image uploaded successfully!
+                                </small>
+                            }
                         </div>
                     </div>
 
@@ -406,5 +414,14 @@
         await DbService.DeletePlayerAsync(id);
         await LoadDataAsync();
         compareList.RemoveAll(p => p.PlayerID == id);
+    }
+    private async Task HandleImageUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            var newImageUrl = await ImageService.UploadImageAsync(file);
+            currentPlayer.ImageUrl = newImageUrl;
+        }
     }
 }

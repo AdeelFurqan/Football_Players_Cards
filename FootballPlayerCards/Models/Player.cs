@@ -2,6 +2,7 @@
 
 namespace FootballPlayerCards.Models
 {
+  
     public class Player
     {
         public int PlayerID { get; set; }

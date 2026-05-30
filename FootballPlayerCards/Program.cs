@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddScoped<DatabaseService>();
+builder.Services.AddScoped<ImageUploadService>();
 
 
 var app = builder.Build();
