@@ -25,6 +25,14 @@
             </button>
         </div>
     </div>
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm hide-on-print" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <strong>System Alert:</strong> @errorMessage
+            <button type="button" class="btn-close" @onclick="ClearError"></button>
+        </div>
+    }
 
     @if (showForm)
     {
@@ -333,6 +341,9 @@
 
     private bool isLoading = true;
     private bool showForm = false;
+    private string? errorMessage = null;
+
+    private void ClearError() => errorMessage = null;
 
     // NEW: Tracking which player is currently being exported
     private int? printingPlayerId = null;
@@ -345,9 +356,22 @@
     private async Task LoadDataAsync()
     {
         isLoading = true;
-        players = await DbService.GetAllPlayersAsync();
-        clubs = await DbService.GetAllClubsAsync();
-        isLoading = false;
+        errorMessage = null; // Clear old errors when retrying
+        try
+        {
+            players = await DbService.GetAllPlayersAsync();
+            clubs = await DbService.GetAllClubsAsync();
+        }
+        catch (Exception ex)
+        {
+            // If SQL Server is turned off, the app survives and shows this instead!
+            errorMessage = "Failed to connect to the database. Please ensure SQL Server is running.";
+            Console.WriteLine($"DB Load Error: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
 
     // --- NEW: Single Card Print Logic ---
@@ -402,12 +426,33 @@
         showForm = true;
     }
     private void CloseForm() { showForm = false; }
+
     private async Task SavePlayer()
     {
-        if (currentPlayer.ClubID == 0) return;
-        await DbService.SavePlayerAsync(currentPlayer);
-        await LoadDataAsync();
-        showForm = false;
+        if (currentPlayer.ClubID == 0)
+        {
+            errorMessage = "Please select a Club before saving.";
+            return;
+        }
+
+        try
+        {
+            bool success = await DbService.SavePlayerAsync(currentPlayer);
+            if (!success)
+            {
+                errorMessage = "The database rejected the save. Please check your data and try again.";
+            }
+            else
+            {
+                await LoadDataAsync();
+                showForm = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "A critical error occurred while saving the stat card.";
+            Console.WriteLine($"Save Error: {ex.Message}");
+        }
     }
     private async Task DeletePlayer(int id)
     {
@@ -417,11 +462,27 @@
     }
     private async Task HandleImageUpload(InputFileChangeEventArgs e)
     {
-        var file = e.File;
-        if (file != null)
+        errorMessage = null;
+        try
         {
-            var newImageUrl = await ImageService.UploadImageAsync(file);
-            currentPlayer.ImageUrl = newImageUrl;
+            var file = e.File;
+            if (file != null)
+            {
+                // Safety Check: Prevent massive files from crashing the server
+                if (file.Size > 5120000) // 5 MB limit
+                {
+                    errorMessage = "That image is too large! Please upload a file smaller than 5MB.";
+                    return;
+                }
+
+                var newImageUrl = await ImageService.UploadImageAsync(file);
+                currentPlayer.ImageUrl = newImageUrl;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Failed to upload the image. It might be corrupted or the wrong format.";
+            Console.WriteLine($"Upload Error: {ex.Message}");
         }
     }
 }
