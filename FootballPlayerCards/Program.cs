@@ -8,7 +8,8 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddScoped<DatabaseService>();
 builder.Services.AddScoped<ImageUploadService>();
-
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<AIChatService>();
 
 var app = builder.Build();
 

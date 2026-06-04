@@ -1,0 +1,78 @@
+﻿@page "/chat"
+@rendermode InteractiveServer
+@using FootballPlayerCards.Services
+@inject AIChatService ChatService
+
+<div class="container mt-5" style="max-width: 600px;">
+    <h3 class="fw-bold text-primary mb-3"><i class="bi bi-robot"></i> Football AI Assistant</h3>
+
+    <div class="card shadow-sm border-0 mb-3" style="height: 400px; overflow-y: auto; background-color: #f8f9fa;">
+        <div class="card-body">
+            @if (messages.Count == 0)
+            {
+                <div class="text-center text-muted mt-5">
+                    Ask me anything about football stats, tactics, or your players!
+                </div>
+            }
+
+            @foreach (var msg in messages)
+            {
+                <div class="mb-3 @(msg.IsUser ? "text-end" : "text-start")">
+                    <span class="badge @(msg.IsUser ? "bg-primary" : "bg-dark") text-wrap p-3 fs-6" style="max-width: 80%; text-align: left; line-height: 1.4;">
+                        @msg.Text
+                    </span>
+                </div>
+            }
+
+            @if (isThinking)
+            {
+                <div class="text-start mb-3">
+                    <span class="badge bg-secondary p-3 fs-6"><div class="spinner-border spinner-border-sm me-2"></div> AI is thinking...</span>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="input-group shadow-sm">
+        <input type="text" class="form-control p-3" @bind="userInput" @bind:event="oninput" @onkeyup="HandleEnterKey" placeholder="Type your message here..." disabled="@isThinking" />
+        <button class="btn btn-primary px-4 fw-bold" @onclick="SendMessage" disabled="@isThinking">SEND</button>
+    </div>
+</div>
+
+@code {
+    private string userInput = "";
+    private bool isThinking = false;
+    private List<ChatMessage> messages = new();
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(userInput)) return;
+
+        // 1. Save user text and clear the box
+        var currentPrompt = userInput;
+        userInput = "";
+
+        // 2. Display the user's message immediately
+        messages.Add(new ChatMessage { Text = currentPrompt, IsUser = true });
+        isThinking = true;
+        StateHasChanged(); // Force UI update
+
+        // 3. Send to AI Service
+        var aiResponse = await ChatService.GetResponseAsync(currentPrompt);
+
+        // 4. Display AI response
+        messages.Add(new ChatMessage { Text = aiResponse, IsUser = false });
+        isThinking = false;
+    }
+
+    private async Task HandleEnterKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SendMessage();
+    }
+
+    public class ChatMessage
+    {
+        public string Text { get; set; } = "";
+        public bool IsUser { get; set; }
+    }
+}
